@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UTAU音源一覧</title>
+<style>
+  /* ============ リセット・ベース ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    background: #f8f7f5;
+    color: #2a2a2a;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ============ フィルターバー ============ */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px;
+    background: #fff;
+    border-bottom: 1px solid #e8e4de;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 3px; }
+  .filter-label { font-size: 11px; color: #888; font-weight: 500; }
+  .filter-group select {
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    color: #2a2a2a;
+    min-width: 120px;
+    cursor: pointer;
+  }
+  .filter-group select:focus { outline: none; border-color: #aaa; }
+
+  /* ============ カードグリッド ============ */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px;
+    padding: 20px 16px;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid #e8e4de;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .card:hover { border-color: #bbb; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .card-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    background: #f0ede8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #bbb;
+    font-size: 36px;
+  }
+  .card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .card-body { padding: 10px 12px; }
+  .card-name { font-size: 14px; font-weight: 600; }
+  .card-sub { font-size: 11px; color: #999; margin-top: 2px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 500;
+  }
+  .tag-voice { background: #E8F0FE; color: #3060C0; }
+  .tag-world { background: #FEF3E2; color: #A05010; }
+  .tag-format { background: #E6F4EA; color: #2D7A3A; }
+  .tag-append { background: #F3E8FD; color: #7030A0; }
+  .tag-custom { background: #F0F0F0; color: #666; }
+
+  /* ============ 空・ローディング ============ */
+  .status {
+    text-align: center;
+    padding: 3rem;
+    color: #999;
+    font-size: 14px;
+  }
+
+  /* ============ オーバーレイ・モーダル ============ */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 14px;
+    width: min(540px, 92%);
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+    position: relative;
+  }
+  .close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #aaa;
+    font-size: 22px;
+    line-height: 1;
+    padding: 0;
+  }
+  .close-btn:hover { color: #333; }
+  .modal-name { font-size: 20px; font-weight: 700; }
+  .modal-sub { font-size: 13px; color: #999; margin-top: 2px; margin-bottom: 10px; }
+  .modal-desc {
+    font-size: 13px;
+    line-height: 1.8;
+    margin: 10px 0 14px;
+    padding: 10px 14px;
+    background: #f8f7f5;
+    border-radius: 8px;
+    border: 1px solid #e8e4de;
+  }
+  .char-page-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #333;
+    text-decoration: none;
+    padding: 9px 14px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    background: #fafafa;
+    margin-bottom: 1rem;
+    transition: background 0.15s;
+  }
+  .char-page-btn:hover { background: #f0ede8; }
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #999;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 1rem 0 8px;
+  }
+  .append-list { display: flex; flex-direction: column; gap: 10px; }
+  .append-item {
+    background: #f8f7f5;
+    border: 1px solid #e8e4de;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .append-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    gap: 8px;
+  }
+  .append-name-row { display: flex; align-items: center; gap: 8px; }
+  .append-thumb {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #eee;
+  }
+  .append-name { font-size: 13px; font-weight: 600; }
+  .append-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+  .append-desc { font-size: 12px; color: #666; margin: 4px 0 10px; line-height: 1.6; }
+  .append-media { display: flex; flex-direction: column; gap: 8px; }
+  audio { width: 100%; height: 32px; }
+  .yt-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid #e0ddd8;
+    background: #fff;
+    transition: border-color 0.15s;
+  }
+  .yt-link:hover { border-color: #bbb; }
+  .yt-thumb {
+    width: 88px;
+    height: 50px;
+    border-radius: 5px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #eee;
+  }
+  .yt-info { display: flex; flex-direction: column; gap: 2px; }
+  .yt-label { font-size: 12px; font-weight: 500; color: #333; }
+  .yt-badge { font-size: 11px; color: #c00; }
+  .no-sample { font-size: 12px; color: #bbb; }
+</style>
+</head>
+<body>
+
+<div class="filter-bar">
+  <div class="filter-group">
+    <span class="filter-label">声質</span>
+    <select id="f-voice" onchange="filter()">
+      <option value="">すべて</option>
+      <option value="男声">男声</option>
+      <option value="女声">女声</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">音源形式</span>
+    <select id="f-format" onchange="filter()">
+      <option value="">すべて</option>
+      <option value="単独音">単独音</option>
+      <option value="連続音">連続音</option>
+      <option value="ACE">ACE</option>
+      <option value="その他">その他</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">世界観</span>
+    <select id="f-world" onchange="filter()">
+      <option value="">すべて</option>
+      <option value="東屋亭シリーズ">東屋亭シリーズ</option>
+      <option value="6月の放課後">6月の放課後</option>
+      <option value="12月の余話">12月の余話</option>
+      <!-- 世界観追加はここに -->
+    </select>
+  </div>
+</div>
+
+<div id="status" class="status">読み込み中…</div>
+<div class="cards" id="cards"></div>
+
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="close-btn" onclick="closeModalDirect()">✕</button>
+    <div class="modal-name" id="m-name"></div>
+    <div class="modal-sub" id="m-sub"></div>
+    <div class="tags" id="m-tags" style="margin-bottom:8px"></div>
+    <div class="modal-desc" id="m-desc"></div>
+    <a class="char-page-btn" id="m-char-link" href="#" target="_blank">
+      ↗ キャラクターページへ
+    </a>
+    <div class="section-title">アペンド音源</div>
+    <div class="append-list" id="m-appends"></div>
+  </div>
+</div>
+
+<script>
+// ============ スプシURL ============
+const SHEET_CHARA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQg_7h25UnFKUbR8sX4zTcifWdeNI0HzTLYiZWY9VD0NPd3HMWyJJfNDCGdwjXuIzqC5qeqcs8rNux/pub?gid=0&single=true&output=csv";
+const SHEET_APPEND = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQg_7h25UnFKUbR8sX4zTcifWdeNI0HzTLYiZWY9VD0NPd3HMWyJJfNDCGdwjXuIzqC5qeqcs8rNux/pub?gid=2114273578&single=true&output=csv";
+
+// ============ CSV パース ============
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  return lines.slice(1).map(line => {
+    const vals = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else { cur += c; }
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').replace(/^"|"$/g, ''));
+    return obj;
+  }).filter(r => r[headers[0]]);
+}
+
+// ============ YouTube ============
+function ytId(url) {
+  const m = url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+function ytThumb(url) {
+  const id = ytId(url);
+  return id ? `https://i.ytimg.com/vi/${id}/mqdefault.jpg` : '';
+}
+
+// ============ Google Drive直リンク変換 ============
+function driveThumb(url) {
+  if (!url) return '';
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w200`;
+  return url;
+}
+
+// ============ データ ============
+let charas = [], appends = [], filtered = [];
+
+async function loadData() {
+  try {
+    const [c, a] = await Promise.all([
+      fetch(SHEET_CHARA).then(r => r.text()),
+      fetch(SHEET_APPEND).then(r => r.text()),
+    ]);
+    charas = parseCSV(c);
+    appends = parseCSV(a);
+    filtered = charas;
+    document.getElementById('status').style.display = 'none';
+    renderCards(charas);
+    checkUrlParam();
+  } catch(e) {
+    document.getElementById('status').textContent = '読み込みに失敗しました。';
+  }
+}
+
+// ============ カード描画 ============
+function getFormats(name) {
+  return [...new Set(appends.filter(a => a['キャラ名'] === name).map(a => a['音源形式']).filter(Boolean))];
+}
+function getTags(c) {
+  return (c['タグ'] || '').split('|').map(t => t.trim()).filter(Boolean);
+}
+
+function renderCards(list) {
+  filtered = list;
+  const el = document.getElementById('cards');
+  el.innerHTML = '';
+  if (list.length === 0) {
+    document.getElementById('status').style.display = 'block';
+    document.getElementById('status').textContent = '該当するキャラクターがいません';
+    return;
+  }
+  document.getElementById('status').style.display = 'none';
+  list.forEach((c, i) => {
+    const formats = getFormats(c['キャラ名']);
+    const tags = getTags(c);
+    const cAppends = appends.filter(a => a['キャラ名'] === c['キャラ名']);
+    const firstThumb = cAppends.find(a => a['サムネURL'])?.['サムネURL'] || '';
+    const thumb = driveThumb(firstThumb);
+    el.innerHTML += `<div class="card" onclick="openModal(${i})">
+      <div class="card-thumb">${thumb ? `<img src="${thumb}" alt="${c['キャラ名']}">` : '♪'}</div>
+      <div class="card-body">
+        <div class="card-name">${c['キャラ名']}</div>
+        <div class="card-sub">${c['キャラ名_英語'] || ''}</div>
+        <div class="tags">
+          ${c['声質'] ? `<span class="tag tag-voice">${c['声質']}</span>` : ''}
+          ${c['世界観'] ? `<span class="tag tag-world">${c['世界観']}</span>` : ''}
+          ${formats.map(f => `<span class="tag tag-format">${f}</span>`).join('')}
+          ${tags.map(t => `<span class="tag tag-custom">${t}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  });
+}
+
+// ============ フィルター ============
+function filter() {
+  const voice = document.getElementById('f-voice').value;
+  const format = document.getElementById('f-format').value;
+  const world = document.getElementById('f-world').value;
+  const list = charas.filter(c => {
+    const cAppends = appends.filter(a => a['キャラ名'] === c['キャラ名']);
+    return (!voice || c['声質'] === voice)
+      && (!world || c['世界観'] === world)
+      && (!format || cAppends.some(a => a['音源形式'] === format));
+  });
+  renderCards(list);
+}
+
+// ============ モーダル ============
+function openModal(i) {
+  const c = filtered[i];
+  const cAppends = appends.filter(a => a['キャラ名'] === c['キャラ名']);
+  const tags = getTags(c);
+  document.getElementById('m-name').textContent = c['キャラ名'];
+  document.getElementById('m-sub').textContent = c['キャラ名_英語'] || '';
+  document.getElementById('m-tags').innerHTML =
+    (c['声質'] ? `<span class="tag tag-voice">${c['声質']}</span>` : '') +
+    (c['世界観'] ? `<span class="tag tag-world">${c['世界観']}</span>` : '') +
+    tags.map(t => `<span class="tag tag-custom">${t}</span>`).join('');
+  document.getElementById('m-desc').textContent = c['説明文'] || '';
+  const charLink = document.getElementById('m-char-link');
+  charLink.href = c['キャラページURL'] || '#';
+  charLink.style.display = c['キャラページURL'] ? 'flex' : 'none';
+
+  document.getElementById('m-appends').innerHTML = cAppends.map(a => {
+    const ytUrl = a['YouTube URL'] || '';
+    const ytHtml = ytUrl ? (() => {
+      const thumb = ytThumb(ytUrl);
+      return `<a class="yt-link" href="${ytUrl}" target="_blank" rel="noopener">
+        ${thumb ? `<img class="yt-thumb" src="${thumb}" alt="">` : ''}
+        <div class="yt-info">
+          <span class="yt-label">配布動画</span>
+          <span class="yt-badge">▶ YouTube</span>
+        </div>
+      </a>`;
+    })() : '';
+    const aThumb = driveThumb(a['サムネURL'] || '');
+    return `<div class="append-item">
+      <div class="append-header">
+        <div class="append-name-row">
+          ${aThumb ? `<img class="append-thumb" src="${aThumb}" alt="">` : ''}
+          <span class="append-name">${a['アペンド名']}</span>
+        </div>
+        <div class="append-badges">
+          ${a['音源形式'] ? `<span class="tag tag-format">${a['音源形式']}</span>` : ''}
+        </div>
+      </div>
+      <div class="append-desc">${a['説明文'] || ''}</div>
+      <div class="append-media">
+        ${a['音声URL'] ? `<audio controls src="${a['音声URL']}"></audio>` : `<div class="no-sample">サンプル準備中</div>`}
+        ${ytHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal(e) { if (e.target === document.getElementById('overlay')) closeModalDirect(); }
+function closeModalDirect() { document.getElementById('overlay').classList.remove('open'); }
+
+// ============ URLパラメーター (?char=さてね) ============
+function checkUrlParam() {
+  const params = new URLSearchParams(window.location.search);
+  const charName = params.get('char');
+  if (!charName) return;
+  const idx = filtered.findIndex(c => c['キャラ名'] === charName);
+  if (idx >= 0) openModal(idx);
+}
+
+loadData();
+</script>
+</body>
+</html>
