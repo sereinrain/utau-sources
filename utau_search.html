@@ -322,6 +322,12 @@ function driveThumb(url) {
   if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w200`;
   return url;
 }
+function driveAudio(url) {
+  if (!url) return '';
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
+  return url;
+}
 
 // ============ データ ============
 let charas = [], appends = [], filtered = [];
@@ -438,7 +444,7 @@ function openModal(i) {
       </div>
       <div class="append-desc">${a['説明文'] || ''}</div>
       <div class="append-media">
-        ${a['音声URL'] ? `<audio controls src="${a['音声URL']}"></audio>` : `<div class="no-sample">サンプル準備中</div>`}
+        ${a['音声URL'] ? `<audio controls src="${driveAudio(a['音声URL'])}"></audio>` : `<div class="no-sample">サンプル準備中</div>`}
         ${a['DL URL'] ? `<a class="dl-btn" href="${a['DL URL']}" target="_blank" rel="noopener">⬇ DOWNLOAD</a>` : ''}
         ${ytHtml}
       </div>
