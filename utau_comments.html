@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>キャラクターコメント</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    background: #f8f7f5;
+    color: #2a2a2a;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 16px;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #999;
+    letter-spacing: 0.05em;
+    margin-bottom: 14px;
+  }
+  .comments-wrap { display: flex; flex-direction: column; gap: 14px; max-width: 480px; }
+  .comment-item { display: flex; align-items: flex-start; gap: 10px; }
+  .c-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #f0ede8;
+    border: 1px solid #e8e4de;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #bbb;
+    font-size: 16px;
+    overflow: hidden;
+  }
+  .c-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .c-bubble {
+    position: relative;
+    background: #fff;
+    border: 1px solid #e8e4de;
+    border-radius: 14px;
+    border-top-left-radius: 4px;
+    padding: 10px 14px;
+    max-width: 380px;
+  }
+  .c-name { font-size: 11px; font-weight: 600; color: #999; margin-bottom: 3px; }
+  .c-text { font-size: 13px; color: #2a2a2a; line-height: 1.6; }
+  .status { text-align: center; padding: 2rem; color: #999; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="section-title" id="title">コメント</div>
+<div id="status" class="status">読み込み中…</div>
+<div class="comments-wrap" id="comments"></div>
+
+<script>
+// ============ スプシURL ============
+const SHEET_CHARA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQg_7h25UnFKUbR8sX4zTcifWdeNI0HzTLYiZWY9VD0NPd3HMWyJJfNDCGdwjXuIzqC5qeqcs8rNux/pub?gid=0&single=true&output=csv";
+const SHEET_APPEND = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQg_7h25UnFKUbR8sX4zTcifWdeNI0HzTLYiZWY9VD0NPd3HMWyJJfNDCGdwjXuIzqC5qeqcs8rNux/pub?gid=2114273578&single=true&output=csv";
+const SHEET_COMMENT = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQg_7h25UnFKUbR8sX4zTcifWdeNI0HzTLYiZWY9VD0NPd3HMWyJJfNDCGdwjXuIzqC5qeqcs8rNux/pub?gid=1157206257&single=true&output=csv";
+
+// ============ CSV パース ============
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  return lines.slice(1).map(line => {
+    const vals = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else { cur += c; }
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').replace(/^"|"$/g, ''));
+    return obj;
+  }).filter(r => r[headers[0]]);
+}
+
+// ============ Google Drive直リンク変換 ============
+function driveThumb(url) {
+  if (!url) return '';
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w100`;
+  return url;
+}
+
+async function loadData() {
+  const params = new URLSearchParams(window.location.search);
+  const charName = params.get('char');
+  if (!charName) {
+    document.getElementById('status').textContent = 'キャラクターが指定されていません（?char=名前 が必要）';
+    return;
+  }
+  document.getElementById('title').textContent = `${charName} へのコメント`;
+
+  try {
+    const [a, cm] = await Promise.all([
+      fetch(SHEET_APPEND).then(r => r.text()),
+      fetch(SHEET_COMMENT).then(r => r.text()),
+    ]);
+    const appends = parseCSV(a);
+    const comments = parseCSV(cm).filter(c => c['対象キャラ名'] === charName);
+
+    // 各キャラの代表サムネ（そのキャラの最初のアペンドのサムネ）
+    function thumbFor(name) {
+      const found = appends.find(x => x['キャラ名'] === name && x['サムネURL']);
+      return found ? driveThumb(found['サムネURL']) : '';
+    }
+
+    const el = document.getElementById('comments');
+    document.getElementById('status').style.display = 'none';
+
+    if (comments.length === 0) {
+      document.getElementById('status').style.display = 'block';
+      document.getElementById('status').textContent = 'まだコメントがありません';
+      return;
+    }
+
+    el.innerHTML = comments.map(c => {
+      const from = c['コメント元キャラ名'];
+      const thumb = thumbFor(from);
+      return `<div class="comment-item">
+        <div class="c-thumb">${thumb ? `<img src="${thumb}" alt="${from}">` : from.charAt(0)}</div>
+        <div class="c-bubble">
+          <div class="c-name">${from}</div>
+          <div class="c-text">${c['コメント文'] || ''}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('status').textContent = '読み込みに失敗しました。';
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
